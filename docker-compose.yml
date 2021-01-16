@@ -1,0 +1,51 @@
+version: "3.7"
+
+volumes:
+  portspgvolume:
+    name: ports-pg-volume
+
+networks:
+  portsnetwork:
+    name: ports-network
+
+services:
+  pg:
+    image: postgres:12.1
+    restart: on-failure
+    env_file:
+      - .env
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+    volumes:
+      - portspgvolume:/var/lib/postgresql/data
+    networks:
+      - portsnetwork
+  portdomainservice:
+    build:
+      context: .
+      dockerfile: portdomainservice/Dockerfile
+    restart: on-failure
+    depends_on:
+      - pg
+      - clientapi
+    ports:
+      "${GRPC_PORT}:${GRPC_PORT}"
+    networks:
+      - portsnetwork
+    env_file:
+      - .env
+    entrypoint: ["/bin/bash", "./entrypoint.sh"]
+  clientapi:
+    build:
+      context: .
+      dockerfile: clientapi/Dockerfile
+    restart: on-failure
+    depends_on:
+      - portdomainservice
+    ports:
+      - "${HTTP_PORT}:${HTTP_PORT}"
+    networks:
+      - portsnetwork
+    env_file:
+      - .env
+    entrypoint: ["/bin/bash", "./entrypoint.sh"]
