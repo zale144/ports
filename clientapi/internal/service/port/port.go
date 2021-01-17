@@ -32,6 +32,7 @@ func NewService(conn *grpc.ClientConn, bs int64) Service {
 		batchSize: bs,
 	}
 }
+
 // Process takes json file, processes batches of port objects and sends each batch to portdomainservice
 // for them to be saved to the database
 func (p Service) Process(ctx context.Context, file io.Reader) (errRet apierror.ErrorMessage) {
@@ -60,20 +61,24 @@ func (p Service) Process(ctx context.Context, file io.Reader) (errRet apierror.E
 
 	waits := numWorkers
 
+	sv, err := p.client.ProcessPortBatch(ctx)
+	if err != nil {
+		log.Printf("error getting server stream %v\n", err)
+		errRet.R.AddError(err)
+	}
+
 	for {
 		select {
 		case portBatch, ok := <-ports:
 			if !ok {
+				recv, err := sv.CloseAndRecv()
+				if err != nil {
+					log.Println(recv, err)
+					errRet.R.AddError(err)
+				}
 				return
 			}
 			// send to port domain service via gRPC
-			log.Printf("sening ports %v\n", portBatch.Ports)
-			sv, err := p.client.ProcessPortBatch(ctx)
-			if err != nil {
-				log.Printf("error getting server stream %v\n", err)
-				errRet.R.AddError(err)
-			}
-
 			if err = sv.Send(portBatch); err != nil {
 				log.Printf("error sending batch to portdomainservice %v\n", err)
 				errRet.R.AddError(err)
@@ -131,7 +136,6 @@ func (p Service) readJSON(ctx context.Context, file io.Reader, errRet *apierror.
 					return
 				}
 				port.Id = t.(string)
-				log.Printf("port %v", port)
 				batch = append(batch, port)
 				// if batch is not full
 				if dec.More() && len(batch) < int(p.batchSize) {
@@ -171,6 +175,7 @@ func prepareBatch(ctx context.Context, id int, batches <-chan []pb.Port, portsRe
 	log.Printf("worker %d finished after processing %d batches\n", id, proc)
 	done <- id // send goroutine identifier to done channel
 }
+
 // GetPorts uses the grpc stream client to get lists of ports
 func (p Service) GetPorts(ctx context.Context) ([]*pb.Port, apierror.ErrorMessage) {
 	errRsp := apierror.ErrorMessage{}

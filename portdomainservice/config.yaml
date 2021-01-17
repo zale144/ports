@@ -1,5 +1,4 @@
 ---
 grpc_port: "4000"
 grpc_host: "localhost"
-db_conn_url: "postgres://user1:pass123@localhost:5433/ubanquity_test?sslmode=disable"
-
+db_conn_url: "postgres://user1:pass123@localhost:5432/postgres?sslmode=disable"

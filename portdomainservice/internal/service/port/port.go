@@ -24,6 +24,7 @@ func NewPort(store store) Port {
 		store: store,
 	}
 }
+
 // ProcessPortBatch accepts a gRPC server stream with a list of port object to process and save to database
 func (p Port) ProcessPortBatch(sv pb.PortService_ProcessPortBatchServer) error {
 
@@ -43,7 +44,7 @@ func (p Port) ProcessPortBatch(sv pb.PortService_ProcessPortBatchServer) error {
 		if err == io.EOF {
 			// return will close stream from server side
 			log.Println("exit")
-			return nil
+			return sv.SendAndClose(&pb.PortBatchRsp{Success: true})
 		}
 		if err != nil {
 			log.Printf("receive error %v", err)
@@ -57,13 +58,6 @@ func (p Port) ProcessPortBatch(sv pb.PortService_ProcessPortBatchServer) error {
 		if err = p.store.SavePorts(ctx, toModel(in.Ports)); err != nil {
 			log.Println(err)
 			return err
-		}
-
-		resp := pb.PortBatchRsp{
-			Success: true,
-		}
-		if err := sv.SendMsg(&resp); err != nil {
-			log.Printf("send error %v", err)
 		}
 	}
 }
@@ -87,6 +81,7 @@ func toModel(dtos []*pb.Port) []model.Port {
 	}
 	return ports
 }
+
 // GetPorts accepts a stream handle to push lists of ports to
 func (p Port) GetPorts(_ *pb.GetPortsReq, sv pb.PortService_GetPortsServer) error {
 	// TODO: paging
